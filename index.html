@@ -58,13 +58,180 @@ h1 {
 </div>
 <canvas id="gameCanvas"></canvas>
 <script>
-// ===== Your existing variables and functions here =====
-// (No change from your original game code except below additions)
+const canvas = document.getElementById("gameCanvas");
+const ctx = canvas.getContext("2d");
+const ROWS = 8, COLS = 8;
+const LIGHT_BROWN = "rgb(222,184,135)";
+const DARK_BROWN = "rgb(139,69,19)";
+const WHITE = "rgb(240,240,240)";
+const BLACK = "rgb(10,10,10)";
+const BLUE = "rgb(50,50,255)";
+const GREEN = "rgb(0,255,0)";
+const YELLOW = "rgb(255,255,0)";
+
+let WIDTH, HEIGHT, SQUARE_SIZE;
+let board = [], selected = null, highlights = [], captureLines = [], turn = 'w', moveHistory = [];
+
+function resizeCanvas() {
+  let size = Math.min(window.innerWidth, window.innerHeight - 120);
+  canvas.width = size;
+  canvas.height = size + 50;
+  WIDTH = canvas.width;
+  HEIGHT = canvas.height;
+  SQUARE_SIZE = WIDTH / COLS;
+  drawBoard();
+}
+
+function createBoard() {
+  board = Array.from({ length: ROWS }, () => Array(COLS).fill(null));
+  for (let r = 0; r < 3; r++) for (let c = (r + 1) % 2; c < COLS; c += 2) board[r][c] = 'b';
+  for (let r = 5; r < 8; r++) for (let c = (r + 1) % 2; c < COLS; c += 2) board[r][c] = 'w';
+  moveHistory = [];
+  turn = 'w';
+}
+
+function drawBoard(message = "", moving=null) {
+  ctx.clearRect(0,0,WIDTH,HEIGHT);
+  captureLines = [];
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      ctx.fillStyle = (r + c) % 2 === 0 ? LIGHT_BROWN : DARK_BROWN;
+      ctx.fillRect(c*SQUARE_SIZE,r*SQUARE_SIZE,SQUARE_SIZE,SQUARE_SIZE);
+      let piece = board[r][c];
+      if(piece && (!moving || moving.fromR!==r || moving.fromC!==c)) {
+        ctx.beginPath();
+        ctx.arc(c*SQUARE_SIZE+SQUARE_SIZE/2,r*SQUARE_SIZE+SQUARE_SIZE/2,SQUARE_SIZE/2-10,0,Math.PI*2);
+        ctx.fillStyle = piece.startsWith('w')?WHITE:BLACK;
+        ctx.fill();
+        if(piece.includes('K')){ctx.fillStyle=BLUE;ctx.font=`${SQUARE_SIZE/3}px Arial`;ctx.fillText("K",c*SQUARE_SIZE+SQUARE_SIZE/4,r*SQUARE_SIZE+SQUARE_SIZE/1.5);}
+        if(turn === piece[0]){
+          let [_,caps]=getValidMoves(r,c);
+          caps.forEach(([to,_]) => captureLines.push([[r,c],to]));
+        }
+      }
+    }
+  }
+  ctx.strokeStyle='red';
+  ctx.lineWidth=3;
+  captureLines.forEach(([[fr,fc],[tr,tc]]) => {
+    ctx.beginPath();
+    ctx.moveTo(fc*SQUARE_SIZE+SQUARE_SIZE/2, fr*SQUARE_SIZE+SQUARE_SIZE/2);
+    ctx.lineTo(tc*SQUARE_SIZE+SQUARE_SIZE/2, tr*SQUARE_SIZE+SQUARE_SIZE/2);
+    ctx.stroke();
+  });
+  highlights.forEach(([r,c])=>{
+    ctx.strokeStyle = GREEN;
+    ctx.lineWidth = 4;
+    ctx.strokeRect(c*SQUARE_SIZE,r*SQUARE_SIZE,SQUARE_SIZE,SQUARE_SIZE);
+  });
+  if(moving){
+    ctx.beginPath();
+    ctx.arc(moving.x,moving.y,SQUARE_SIZE/2-10,0,Math.PI*2);
+    ctx.fillStyle = moving.piece.startsWith('w')?WHITE:BLACK;
+    ctx.fill();
+    if(moving.piece.includes('K')){ctx.fillStyle=BLUE;ctx.font=`${SQUARE_SIZE/3}px Arial`;ctx.fillText("K",moving.x-10,moving.y+5);}
+  }
+  if(selected){
+    ctx.strokeStyle = YELLOW;
+    ctx.lineWidth = 4;
+    ctx.strokeRect(selected[1]*SQUARE_SIZE,selected[0]*SQUARE_SIZE,SQUARE_SIZE,SQUARE_SIZE);
+  }
+  ctx.fillStyle="#000";ctx.fillRect(0,HEIGHT-50,WIDTH,50);
+  ctx.fillStyle="#fff";ctx.font=`${SQUARE_SIZE/3}px Arial`;
+  let whiteCount = board.flat().filter(p=>p&&p.startsWith('w')).length;
+  let blackCount = board.flat().filter(p=>p&&p.startsWith('b')).length;
+  ctx.fillText(`White: ${whiteCount}  Black: ${blackCount}`, WIDTH/2-80, HEIGHT-20);
+  if(message){ctx.fillStyle="red";ctx.font=`${SQUARE_SIZE/2.5}px Arial`;ctx.fillText(message,WIDTH/2-ctx.measureText(message).width/2,HEIGHT/2);}
+}
+
+function getValidMoves(r,c){
+  let piece=board[r][c]; if(!piece) return [[],[]];
+  let isKing=piece.includes('K'); let isWhite=piece.startsWith('w');
+  let dirs=[[-1,-1],[-1,1],[1,-1],[1,1]], moves=[], captures=[];
+  for(let [dr,dc] of dirs){
+    if(!isKing){if(isWhite&&dr>0) continue; if(!isWhite&&dr<0) continue;}
+    let nr=r+dr, nc=c+dc;
+    if(nr>=0&&nr<ROWS&&nc>=0&&nc<COLS){
+      if(!board[nr][nc]) moves.push([nr,nc]);
+      else if(board[nr][nc][0]!==piece[0]){
+        let jr=nr+dr,jc=nc+dc;
+        if(jr>=0&&jr<ROWS&&jc>=0&&jc<COLS&&!board[jr][jc]) captures.push([[jr,jc],[nr,nc]]);
+      }
+    }
+  }
+  return [moves,captures];
+}
+
+function animateMove(fromR,fromC,toR,toC,piece,jumped){
+  return new Promise(resolve=>{
+    moveHistory.push(JSON.parse(JSON.stringify(board)));
+    let steps=20, fx=fromC*SQUARE_SIZE+SQUARE_SIZE/2, fy=fromR*SQUARE_SIZE+SQUARE_SIZE/2;
+    let tx=toC*SQUARE_SIZE+SQUARE_SIZE/2, ty=toR*SQUARE_SIZE+SQUARE_SIZE/2;
+    let frame=0;
+    function step(){
+      frame++;
+      let x=fx+(tx-fx)*frame/steps, y=fy+(ty-fy)*frame/steps;
+      drawBoard(null,{piece,x,y,fromR,fromC});
+      if(frame<steps) requestAnimationFrame(step);
+      else { board[fromR][fromC]=null; board[toR][toC]=piece; if(jumped) board[jumped[0]][jumped[1]]=null; resolve(); }
+    }
+    step();
+  });
+}
+
+async function playerClick(e){
+  if(turn!=='w') return;
+  let x=Math.floor(e.offsetX/SQUARE_SIZE),y=Math.floor(e.offsetY/SQUARE_SIZE);
+  let piece = board[y][x];
+  if(selected){
+    let [moves,captures]=getValidMoves(selected[0],selected[1]);
+    let cap=captures.find(([to,_])=>to[0]===y&&to[1]===x);
+    let move=moves.find(([r,c])=>r===y&&c===x);
+    if(move||cap){
+      let jumped=cap?cap[1]:null;
+      let p=board[selected[0]][selected[1]];
+      await animateMove(selected[0],selected[1],y,x,p,jumped);
+      if(y===0&&p==='w') board[y][x]='wK';
+      selected=null;
+      highlights=[];
+      turn='b';
+      drawBoard();
+      if(checkGameOver()) return;
+      setTimeout(aiMove,200);
+    } else {
+      selected=null; highlights=[]; drawBoard();
+    }
+  } else if(piece && piece.startsWith('w')){
+    selected=[y,x];
+    let [moves,caps]=getValidMoves(y,x);
+    highlights=moves.concat(caps.map(c=>c[0]));
+    drawBoard();
+  }
+}
+
+async function aiMove(){
+  let moves=[];
+  for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++) if(board[r][c]&&board[r][c].startsWith('b')){
+    let [m,caps]=getValidMoves(r,c);
+    for(let [to,jumped] of caps) moves.unshift([[r,c],to,jumped]);
+    for(let to of m) moves.push([[r,c],to,null]);
+  }
+  if(moves.length){
+    let [[fr,fc],[tr,tc],jumped]=moves[0];
+    let piece=board[fr][fc];
+    await animateMove(fr,fc,tr,tc,piece,jumped);
+    if(tr===7&&piece==='b') board[tr][tc]='bK';
+  }
+  turn='w';
+  drawBoard();
+  checkGameOver();
+}
+
+function undoMove(){ if(moveHistory.length>0){ board=moveHistory.pop(); drawBoard(); turn=turn==='w'?'b':'w'; } }
 
 function checkGameOver() {
     let whiteCount = board.flat().filter(p => p && p.startsWith('w')).length;
     let blackCount = board.flat().filter(p => p && p.startsWith('b')).length;
-
     if (blackCount === 0) {
         drawBoard("You Win!!");
         showPlayAgainButton("You Win!!");
@@ -92,23 +259,14 @@ function showPlayAgainButton(message) {
     document.body.appendChild(btn);
 }
 
-// Add this checkGameOver() call after moves
-function postMoveCheck() {
-    if (checkGameOver()) return true;
-    return false;
-}
+document.getElementById('undoBtn').addEventListener('click',undoMove);
+document.getElementById('newBtn').addEventListener('click',()=>{createBoard(); drawBoard();});
+canvas.addEventListener('click',playerClick);
+window.addEventListener("resize", resizeCanvas);
 
-// Example placement: inside aiMove() and playerClick() after drawBoard()
-const originalPlayerClick = playerClick;
-playerClick = async function(e) {
-    await originalPlayerClick(e);
-    postMoveCheck();
-};
-const originalAiMove = aiMove;
-aiMove = async function() {
-    await originalAiMove();
-    postMoveCheck();
-};
+createBoard();
+resizeCanvas();
 </script>
 </body>
 </html>
+
