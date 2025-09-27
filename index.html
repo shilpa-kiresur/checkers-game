@@ -5,32 +5,33 @@
 <title>International Checkers</title>
 <style>
 body {
-  background: linear-gradient(to bottom right, #f0e4d7, #c9d6df);
+  background: linear-gradient(to bottom right, #ddd6f3, #faaca8);
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: flex-start;
-  height: 100vh;
   margin: 0;
+  padding: 0;
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 #controls {
   display: flex;
   flex-direction: column;
   align-items: center;
-  margin: 10px 0;
+  margin: 10px;
+  width: 100%;
 }
 canvas {
   border-radius: 20px;
   box-shadow: 0 10px 30px rgba(0,0,0,0.3);
   background: #fefefe;
-  max-width: 100vw;
-  max-height: 100vh;
+  max-width: 95vw;
+  height: auto;
 }
 button {
-  margin: 5px;
-  padding: 12px 25px;
-  font-size: 16px;
+  margin: 10px;
+  padding: 12px 20px;
+  font-size: 4vw;
   border: none;
   border-radius: 10px;
   background: linear-gradient(to right, #ff7e5f, #feb47b);
@@ -42,10 +43,17 @@ button:hover {
   box-shadow: 0 8px 20px rgba(0,0,0,0.3);
 }
 h1 {
+  font-size: 6vw;
   color: #333;
   text-shadow: 1px 1px 2px rgba(0,0,0,0.2);
   text-align: center;
-  margin: 0;
+  margin: 5px;
+}
+@media (max-width: 600px) {
+  canvas {
+    width: 95vw;
+    height: auto;
+  }
 }
 </style>
 </head>
@@ -67,12 +75,11 @@ const BLACK = "rgb(10,10,10)";
 const BLUE = "rgb(50,50,255)";
 const GREEN = "rgb(0,255,0)";
 const YELLOW = "rgb(255,255,0)";
-
 let WIDTH, HEIGHT, SQUARE_SIZE;
 let board = [], selected = null, highlights = [], captureLines = [], turn = 'w', moveHistory = [];
 
 function resizeCanvas() {
-  let size = Math.min(window.innerWidth, window.innerHeight - 120);
+  let size = Math.min(window.innerWidth * 0.95, window.innerHeight * 0.7);
   canvas.width = size;
   canvas.height = size + 50;
   WIDTH = canvas.width;
@@ -99,7 +106,8 @@ function drawBoard(message = "", moving=null) {
       let piece = board[r][c];
       if(piece && (!moving || moving.fromR!==r || moving.fromC!==c)) {
         ctx.beginPath();
-        ctx.arc(c*SQUARE_SIZE+SQUARE_SIZE/2,r*SQUARE_SIZE+SQUARE_SIZE/2,SQUARE_SIZE/2-10,0,Math.PI*2);
+        let radius = SQUARE_SIZE/2 - SQUARE_SIZE*0.1;
+        ctx.arc(c*SQUARE_SIZE+SQUARE_SIZE/2,r*SQUARE_SIZE+SQUARE_SIZE/2,radius,0,Math.PI*2);
         ctx.fillStyle = piece.startsWith('w')?WHITE:BLACK;
         ctx.fill();
         if(piece.includes('K')){
@@ -115,7 +123,7 @@ function drawBoard(message = "", moving=null) {
     }
   }
   ctx.strokeStyle='red';
-  ctx.lineWidth=3;
+  ctx.lineWidth=8; 
   captureLines.forEach(([[fr,fc],[tr,tc]]) => {
     ctx.beginPath();
     ctx.moveTo(fc*SQUARE_SIZE+SQUARE_SIZE/2, fr*SQUARE_SIZE+SQUARE_SIZE/2);
@@ -124,12 +132,18 @@ function drawBoard(message = "", moving=null) {
   });
   highlights.forEach(([r,c])=>{
     ctx.strokeStyle = GREEN;
-    ctx.lineWidth = 4;
+    ctx.lineWidth = 12;
     ctx.strokeRect(c*SQUARE_SIZE,r*SQUARE_SIZE,SQUARE_SIZE,SQUARE_SIZE);
   });
+  if(selected){
+    ctx.strokeStyle = YELLOW;
+    ctx.lineWidth = 12;
+    ctx.strokeRect(selected[1]*SQUARE_SIZE,selected[0]*SQUARE_SIZE,SQUARE_SIZE,SQUARE_SIZE);
+  }
   if(moving){
     ctx.beginPath();
-    ctx.arc(moving.x,moving.y,SQUARE_SIZE/2-10,0,Math.PI*2);
+    let radius = SQUARE_SIZE/2 - SQUARE_SIZE*0.1;
+    ctx.arc(moving.x,moving.y,radius,0,Math.PI*2);
     ctx.fillStyle = moving.piece.startsWith('w')?WHITE:BLACK;
     ctx.fill();
     if(moving.piece.includes('K')){
@@ -137,11 +151,6 @@ function drawBoard(message = "", moving=null) {
       ctx.font=`${SQUARE_SIZE/3}px Arial`;
       ctx.fillText("K",moving.x-10,moving.y+5);
     }
-  }
-  if(selected){
-    ctx.strokeStyle = YELLOW;
-    ctx.lineWidth = 4;
-    ctx.strokeRect(selected[1]*SQUARE_SIZE,selected[0]*SQUARE_SIZE,SQUARE_SIZE,SQUARE_SIZE);
   }
   ctx.fillStyle="#000";
   ctx.fillRect(0,HEIGHT-50,WIDTH,50);
@@ -162,42 +171,22 @@ function getValidMoves(r,c){
   if(!piece) return [[],[]];
   let isKing = piece.includes('K');
   let isWhite = piece.startsWith('w');
-  let dirs = [[-1,-1],[-1,1],[1,-1],[1,1]], moves=[], captures=[];
+  let dirs=[[-1,-1],[-1,1],[1,-1],[1,1]], moves=[], captures=[];
   for(let [dr,dc] of dirs){
-    let nr = r + dr, nc = c + dc;
-    if(!isKing){
-      if(isWhite && dr>0) continue;
-      if(!isWhite && dr<0) continue;
-      if(nr>=0 && nr<ROWS && nc>=0 && nc<COLS){
-        if(!board[nr][nc]) moves.push([nr,nc]);
-        else if(board[nr][nc][0]!==piece[0]){
-          let jr = nr+dr, jc = nc+dc;
-          if(jr>=0 && jr<ROWS && jc>=0 && jc<COLS && !board[jr][jc])
-            captures.push([[jr,jc],[nr,nc]]);
-        }
-      }
-    } else {
-      while(nr>=0 && nr<ROWS && nc>=0 && nc<COLS){
-        if(!board[nr][nc]){
-          moves.push([nr,nc]);
-        } else if(board[nr][nc][0]!==piece[0]){
-          let jr = nr+dr, jc = nc+dc;
-          while(jr>=0 && jr<ROWS && jc>=0 && jc<COLS && !board[jr][jc]){
-            captures.push([[jr,jc],[nr,nc]]);
-            jr += dr;
-            jc += dc;
-          }
-          break;
-        } else break;
-        nr += dr;
-        nc += dc;
+    if(!isKing){if(isWhite&&dr>0) continue; if(!isWhite&&dr<0) continue;}
+    let nr=r+dr, nc=c+dc;
+    if(nr>=0&&nr<ROWS&&nc>=0&&nc<COLS){
+      if(!board[nr][nc]) moves.push([nr,nc]);
+      else if(board[nr][nc][0]!==piece[0]){
+        let jr=nr+dr,jc=nc+dc;
+        if(jr>=0&&jr<ROWS&&jc>=0&&jc<COLS&&!board[jr][jc]) captures.push([[jr,jc],[nr,nc]]);
       }
     }
   }
   return [moves,captures];
 }
 
-function animateMove(fromR,fromC,toR,toC,piece,jumped){
+async function animateMove(fromR,fromC,toR,toC,piece,jumped){
   return new Promise(resolve=>{
     moveHistory.push(JSON.parse(JSON.stringify(board)));
     let steps=20, fx=fromC*SQUARE_SIZE+SQUARE_SIZE/2, fy=fromR*SQUARE_SIZE+SQUARE_SIZE/2;
@@ -208,12 +197,7 @@ function animateMove(fromR,fromC,toR,toC,piece,jumped){
       let x=fx+(tx-fx)*frame/steps, y=fy+(ty-fy)*frame/steps;
       drawBoard(null,{piece,x,y,fromR,fromC});
       if(frame<steps) requestAnimationFrame(step);
-      else {
-        board[fromR][fromC]=null;
-        board[toR][toC]=piece;
-        if(jumped) board[jumped[0]][jumped[1]]=null;
-        resolve();
-      }
+      else { board[fromR][fromC]=null; board[toR][toC]=piece; if(jumped) board[jumped[0]][jumped[1]]=null; resolve(); }
     }
     step();
   });
@@ -235,13 +219,10 @@ async function playerClick(e){
       selected=null;
       highlights=[];
       turn='b';
-      drawBoard();
-      checkEndGame();
       setTimeout(aiMove,200);
-    } else {
-      selected=null;
-      highlights=[];
       drawBoard();
+    } else {
+      selected=null; highlights=[]; drawBoard();
     }
   } else if(piece && piece.startsWith('w')){
     selected=[y,x];
@@ -252,82 +233,34 @@ async function playerClick(e){
 }
 
 async function aiMove(){
-  let moves=[], captures=[];
-  for(let r=0;r<ROWS;r++)
-    for(let c=0;c<COLS;c++)
-      if(board[r][c]&&board[r][c].startsWith('b')){
-        let [m,caps]=getValidMoves(r,c);
-        for(let [to,jumped] of caps) captures.push([[r,c],to,jumped]);
-        for(let to of m) moves.push([[r,c],to,null]);
-      }
-  if(captures.length){
-    let [[fr,fc],[tr,tc],jumped] = captures[0];
-    let piece=board[fr][fc];
-    await animateMove(fr,fc,tr,tc,piece,jumped);
-    if(tr===7&&piece==='b') board[tr][tc]='bK';
-  } else if(moves.length){
-    let [[fr,fc],[tr,tc],jumped] = moves[0];
+  let moves=[];
+  for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++) if(board[r][c]&&board[r][c].startsWith('b')){
+    let [m,caps]=getValidMoves(r,c);
+    for(let [to,jumped] of caps) moves.unshift([[r,c],to,jumped]);
+    for(let to of m) moves.push([[r,c],to,null]);
+  }
+  if(moves.length){
+    let [[fr,fc],[tr,tc],jumped]=moves[0];
     let piece=board[fr][fc];
     await animateMove(fr,fc,tr,tc,piece,jumped);
     if(tr===7&&piece==='b') board[tr][tc]='bK';
   }
   turn='w';
   drawBoard();
-  checkEndGame();
 }
 
-function undoMove(){
-  if(moveHistory.length>0){
-    board=moveHistory.pop();
-    drawBoard();
-    turn=turn==='w'?'b':'w';
-  }
-}
+function undoMove(){ if(moveHistory.length>0){ board=moveHistory.pop(); drawBoard(); turn=turn==='w'?'b':'w'; } }
 
-function checkEndGame(){
-  let whiteCount = board.flat().filter(p=>p&&p.startsWith('w')).length;
-  let blackCount = board.flat().filter(p=>p&&p.startsWith('b')).length;
-  if(blackCount===0){
-    showEndMessage("You Win!!");
-  } else if(whiteCount===0){
-    showEndMessage("You Lost.");
-  }
-}
-
-function showEndMessage(msg){
-  drawBoard(msg);
-  let btn = document.createElement("button");
-  btn.innerText = "Play Again";
-  btn.style.position = "absolute";
-  btn.style.top = "50%";
-  btn.style.left = "50%";
-  btn.style.transform = "translate(-50%, -50%)";
-  btn.style.padding = "20px";
-  btn.style.fontSize = "20px";
-  btn.id = "playAgainBtn";
-  document.body.appendChild(btn);
-
-  btn.addEventListener('click', () => {
-    btn.remove();
-    createBoard();
-    drawBoard();
-  });
-}
-
-window.onload = () => {
-    createBoard();
-    resizeCanvas();
-    canvas.addEventListener('click', playerClick);
-    document.getElementById('undoBtn').addEventListener('click',undoMove);
-    document.getElementById('newBtn').addEventListener('click',()=>{
-        createBoard();
-        drawBoard();
-    });
-};
+document.getElementById('undoBtn').addEventListener('click',undoMove);
+document.getElementById('newBtn').addEventListener('click',()=>{createBoard(); drawBoard();});
+canvas.addEventListener('click',playerClick);
 
 window.addEventListener("resize", resizeCanvas);
+createBoard();
+resizeCanvas();
 </script>
 </body>
 </html>
+
 
 
