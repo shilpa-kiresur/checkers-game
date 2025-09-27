@@ -158,23 +158,39 @@ function drawBoard(message = "", moving=null) {
 }
 
 function getValidMoves(r,c){
-  let piece=board[r][c];
+  let piece = board[r][c];
   if(!piece) return [[],[]];
-  let isKing=piece.includes('K');
-  let isWhite=piece.startsWith('w');
-  let dirs=[[-1,-1],[-1,1],[1,-1],[1,1]], moves=[], captures=[];
+  let isKing = piece.includes('K');
+  let isWhite = piece.startsWith('w');
+  let dirs = [[-1,-1],[-1,1],[1,-1],[1,1]], moves=[], captures=[];
   for(let [dr,dc] of dirs){
+    let nr = r + dr, nc = c + dc;
     if(!isKing){
-      if(isWhite&&dr>0) continue;
-      if(!isWhite&&dr<0) continue;
-    }
-    let nr=r+dr, nc=c+dc;
-    if(nr>=0&&nr<ROWS&&nc>=0&&nc<COLS){
-      if(!board[nr][nc]) moves.push([nr,nc]);
-      else if(board[nr][nc][0]!==piece[0]){
-        let jr=nr+dr,jc=nc+dc;
-        if(jr>=0&&jr<ROWS&&jc>=0&&jc<COLS&&!board[jr][jc])
-          captures.push([[jr,jc],[nr,nc]]);
+      if(isWhite && dr>0) continue;
+      if(!isWhite && dr<0) continue;
+      if(nr>=0 && nr<ROWS && nc>=0 && nc<COLS){
+        if(!board[nr][nc]) moves.push([nr,nc]);
+        else if(board[nr][nc][0]!==piece[0]){
+          let jr = nr+dr, jc = nc+dc;
+          if(jr>=0 && jr<ROWS && jc>=0 && jc<COLS && !board[jr][jc])
+            captures.push([[jr,jc],[nr,nc]]);
+        }
+      }
+    } else {
+      while(nr>=0 && nr<ROWS && nc>=0 && nc<COLS){
+        if(!board[nr][nc]){
+          moves.push([nr,nc]);
+        } else if(board[nr][nc][0]!==piece[0]){
+          let jr = nr+dr, jc = nc+dc;
+          while(jr>=0 && jr<ROWS && jc>=0 && jc<COLS && !board[jr][jc]){
+            captures.push([[jr,jc],[nr,nc]]);
+            jr += dr;
+            jc += dc;
+          }
+          break;
+        } else break;
+        nr += dr;
+        nc += dc;
       }
     }
   }
@@ -220,6 +236,7 @@ async function playerClick(e){
       highlights=[];
       turn='b';
       drawBoard();
+      checkEndGame();
       setTimeout(aiMove,200);
     } else {
       selected=null;
@@ -235,22 +252,28 @@ async function playerClick(e){
 }
 
 async function aiMove(){
-  let moves=[];
+  let moves=[], captures=[];
   for(let r=0;r<ROWS;r++)
     for(let c=0;c<COLS;c++)
       if(board[r][c]&&board[r][c].startsWith('b')){
         let [m,caps]=getValidMoves(r,c);
-        for(let [to,jumped] of caps) moves.unshift([[r,c],to,jumped]);
+        for(let [to,jumped] of caps) captures.push([[r,c],to,jumped]);
         for(let to of m) moves.push([[r,c],to,null]);
       }
-  if(moves.length){
-    let [[fr,fc],[tr,tc],jumped]=moves[0];
+  if(captures.length){
+    let [[fr,fc],[tr,tc],jumped] = captures[0];
+    let piece=board[fr][fc];
+    await animateMove(fr,fc,tr,tc,piece,jumped);
+    if(tr===7&&piece==='b') board[tr][tc]='bK';
+  } else if(moves.length){
+    let [[fr,fc],[tr,tc],jumped] = moves[0];
     let piece=board[fr][fc];
     await animateMove(fr,fc,tr,tc,piece,jumped);
     if(tr===7&&piece==='b') board[tr][tc]='bK';
   }
   turn='w';
   drawBoard();
+  checkEndGame();
 }
 
 function undoMove(){
@@ -259,6 +282,36 @@ function undoMove(){
     drawBoard();
     turn=turn==='w'?'b':'w';
   }
+}
+
+function checkEndGame(){
+  let whiteCount = board.flat().filter(p=>p&&p.startsWith('w')).length;
+  let blackCount = board.flat().filter(p=>p&&p.startsWith('b')).length;
+  if(blackCount===0){
+    showEndMessage("You Win!!");
+  } else if(whiteCount===0){
+    showEndMessage("You Lost.");
+  }
+}
+
+function showEndMessage(msg){
+  drawBoard(msg);
+  let btn = document.createElement("button");
+  btn.innerText = "Play Again";
+  btn.style.position = "absolute";
+  btn.style.top = "50%";
+  btn.style.left = "50%";
+  btn.style.transform = "translate(-50%, -50%)";
+  btn.style.padding = "20px";
+  btn.style.fontSize = "20px";
+  btn.id = "playAgainBtn";
+  document.body.appendChild(btn);
+
+  btn.addEventListener('click', () => {
+    btn.remove();
+    createBoard();
+    drawBoard();
+  });
 }
 
 window.onload = () => {
