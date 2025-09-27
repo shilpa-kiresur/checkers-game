@@ -36,7 +36,6 @@ button {
   background: linear-gradient(to right, #ff7e5f, #feb47b);
   color: white;
   cursor: pointer;
-  box-shadow: 0 5px 15px rgba(0,0,0,0.2);
 }
 button:hover {
   transform: translateY(-2px);
@@ -103,7 +102,11 @@ function drawBoard(message = "", moving=null) {
         ctx.arc(c*SQUARE_SIZE+SQUARE_SIZE/2,r*SQUARE_SIZE+SQUARE_SIZE/2,SQUARE_SIZE/2-10,0,Math.PI*2);
         ctx.fillStyle = piece.startsWith('w')?WHITE:BLACK;
         ctx.fill();
-        if(piece.includes('K')){ctx.fillStyle=BLUE;ctx.font=`${SQUARE_SIZE/3}px Arial`;ctx.fillText("K",c*SQUARE_SIZE+SQUARE_SIZE/4,r*SQUARE_SIZE+SQUARE_SIZE/1.5);}
+        if(piece.includes('K')){
+          ctx.fillStyle=BLUE;
+          ctx.font=`${SQUARE_SIZE/3}px Arial`;
+          ctx.fillText("K",c*SQUARE_SIZE+SQUARE_SIZE/4,r*SQUARE_SIZE+SQUARE_SIZE/1.5);
+        }
         if(turn === piece[0]){
           let [_,caps]=getValidMoves(r,c);
           caps.forEach(([to,_]) => captureLines.push([[r,c],to]));
@@ -129,33 +132,49 @@ function drawBoard(message = "", moving=null) {
     ctx.arc(moving.x,moving.y,SQUARE_SIZE/2-10,0,Math.PI*2);
     ctx.fillStyle = moving.piece.startsWith('w')?WHITE:BLACK;
     ctx.fill();
-    if(moving.piece.includes('K')){ctx.fillStyle=BLUE;ctx.font=`${SQUARE_SIZE/3}px Arial`;ctx.fillText("K",moving.x-10,moving.y+5);}
+    if(moving.piece.includes('K')){
+      ctx.fillStyle=BLUE;
+      ctx.font=`${SQUARE_SIZE/3}px Arial`;
+      ctx.fillText("K",moving.x-10,moving.y+5);
+    }
   }
   if(selected){
     ctx.strokeStyle = YELLOW;
     ctx.lineWidth = 4;
     ctx.strokeRect(selected[1]*SQUARE_SIZE,selected[0]*SQUARE_SIZE,SQUARE_SIZE,SQUARE_SIZE);
   }
-  ctx.fillStyle="#000";ctx.fillRect(0,HEIGHT-50,WIDTH,50);
-  ctx.fillStyle="#fff";ctx.font=`${SQUARE_SIZE/3}px Arial`;
+  ctx.fillStyle="#000";
+  ctx.fillRect(0,HEIGHT-50,WIDTH,50);
+  ctx.fillStyle="#fff";
+  ctx.font=`${SQUARE_SIZE/3}px Arial`;
   let whiteCount = board.flat().filter(p=>p&&p.startsWith('w')).length;
   let blackCount = board.flat().filter(p=>p&&p.startsWith('b')).length;
   ctx.fillText(`White: ${whiteCount}  Black: ${blackCount}`, WIDTH/2-80, HEIGHT-20);
-  if(message){ctx.fillStyle="red";ctx.font=`${SQUARE_SIZE/2.5}px Arial`;ctx.fillText(message,WIDTH/2-ctx.measureText(message).width/2,HEIGHT/2);}
+  if(message){
+    ctx.fillStyle="red";
+    ctx.font=`${SQUARE_SIZE/2.5}px Arial`;
+    ctx.fillText(message,WIDTH/2-ctx.measureText(message).width/2,HEIGHT/2);
+  }
 }
 
 function getValidMoves(r,c){
-  let piece=board[r][c]; if(!piece) return [[],[]];
-  let isKing=piece.includes('K'); let isWhite=piece.startsWith('w');
+  let piece=board[r][c];
+  if(!piece) return [[],[]];
+  let isKing=piece.includes('K');
+  let isWhite=piece.startsWith('w');
   let dirs=[[-1,-1],[-1,1],[1,-1],[1,1]], moves=[], captures=[];
   for(let [dr,dc] of dirs){
-    if(!isKing){if(isWhite&&dr>0) continue; if(!isWhite&&dr<0) continue;}
+    if(!isKing){
+      if(isWhite&&dr>0) continue;
+      if(!isWhite&&dr<0) continue;
+    }
     let nr=r+dr, nc=c+dc;
     if(nr>=0&&nr<ROWS&&nc>=0&&nc<COLS){
       if(!board[nr][nc]) moves.push([nr,nc]);
       else if(board[nr][nc][0]!==piece[0]){
         let jr=nr+dr,jc=nc+dc;
-        if(jr>=0&&jr<ROWS&&jc>=0&&jc<COLS&&!board[jr][jc]) captures.push([[jr,jc],[nr,nc]]);
+        if(jr>=0&&jr<ROWS&&jc>=0&&jc<COLS&&!board[jr][jc])
+          captures.push([[jr,jc],[nr,nc]]);
       }
     }
   }
@@ -173,7 +192,12 @@ function animateMove(fromR,fromC,toR,toC,piece,jumped){
       let x=fx+(tx-fx)*frame/steps, y=fy+(ty-fy)*frame/steps;
       drawBoard(null,{piece,x,y,fromR,fromC});
       if(frame<steps) requestAnimationFrame(step);
-      else { board[fromR][fromC]=null; board[toR][toC]=piece; if(jumped) board[jumped[0]][jumped[1]]=null; resolve(); }
+      else {
+        board[fromR][fromC]=null;
+        board[toR][toC]=piece;
+        if(jumped) board[jumped[0]][jumped[1]]=null;
+        resolve();
+      }
     }
     step();
   });
@@ -196,10 +220,11 @@ async function playerClick(e){
       highlights=[];
       turn='b';
       drawBoard();
-      if(checkGameOver()) return;
       setTimeout(aiMove,200);
     } else {
-      selected=null; highlights=[]; drawBoard();
+      selected=null;
+      highlights=[];
+      drawBoard();
     }
   } else if(piece && piece.startsWith('w')){
     selected=[y,x];
@@ -211,11 +236,13 @@ async function playerClick(e){
 
 async function aiMove(){
   let moves=[];
-  for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++) if(board[r][c]&&board[r][c].startsWith('b')){
-    let [m,caps]=getValidMoves(r,c);
-    for(let [to,jumped] of caps) moves.unshift([[r,c],to,jumped]);
-    for(let to of m) moves.push([[r,c],to,null]);
-  }
+  for(let r=0;r<ROWS;r++)
+    for(let c=0;c<COLS;c++)
+      if(board[r][c]&&board[r][c].startsWith('b')){
+        let [m,caps]=getValidMoves(r,c);
+        for(let [to,jumped] of caps) moves.unshift([[r,c],to,jumped]);
+        for(let to of m) moves.push([[r,c],to,null]);
+      }
   if(moves.length){
     let [[fr,fc],[tr,tc],jumped]=moves[0];
     let piece=board[fr][fc];
@@ -224,49 +251,30 @@ async function aiMove(){
   }
   turn='w';
   drawBoard();
-  checkGameOver();
 }
 
-function undoMove(){ if(moveHistory.length>0){ board=moveHistory.pop(); drawBoard(); turn=turn==='w'?'b':'w'; } }
-
-function checkGameOver() {
-    let whiteCount = board.flat().filter(p => p && p.startsWith('w')).length;
-    let blackCount = board.flat().filter(p => p && p.startsWith('b')).length;
-    if (blackCount === 0) {
-        drawBoard("You Win!!");
-        showPlayAgainButton("You Win!!");
-        return true;
-    }
-    if (whiteCount === 0) {
-        drawBoard("You Lost.");
-        showPlayAgainButton("You Lost.");
-        return true;
-    }
-    return false;
+function undoMove(){
+  if(moveHistory.length>0){
+    board=moveHistory.pop();
+    drawBoard();
+    turn=turn==='w'?'b':'w';
+  }
 }
 
-function showPlayAgainButton(message) {
-    const btn = document.createElement("button");
-    btn.textContent = "Play Again";
-    btn.style.fontSize = "18px";
-    btn.style.padding = "12px";
-    btn.style.marginTop = "10px";
-    btn.onclick = () => {
-        document.body.removeChild(btn);
+window.onload = () => {
+    createBoard();
+    resizeCanvas();
+    canvas.addEventListener('click', playerClick);
+    document.getElementById('undoBtn').addEventListener('click',undoMove);
+    document.getElementById('newBtn').addEventListener('click',()=>{
         createBoard();
         drawBoard();
-    };
-    document.body.appendChild(btn);
-}
+    });
+};
 
-document.getElementById('undoBtn').addEventListener('click',undoMove);
-document.getElementById('newBtn').addEventListener('click',()=>{createBoard(); drawBoard();});
-canvas.addEventListener('click',playerClick);
 window.addEventListener("resize", resizeCanvas);
-
-createBoard();
-resizeCanvas();
 </script>
 </body>
 </html>
+
 
