@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>International Checkers</title>
+<style>
+body {
+  background: linear-gradient(to bottom right, #f0e4d7, #c9d6df);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  height: 100vh;
+  margin: 0;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+#controls {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: 10px 0;
+}
+canvas {
+  border-radius: 20px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+  background: #fefefe;
+  max-width: 100vw;
+  max-height: 100vh;
+}
+button {
+  margin: 5px;
+  padding: 12px 25px;
+  font-size: 16px;
+  border: none;
+  border-radius: 10px;
+  background: linear-gradient(to right, #ff7e5f, #feb47b);
+  color: white;
+  cursor: pointer;
+  box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+}
+button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(0,0,0,0.3);
+}
+h1 {
+  color: #333;
+  text-shadow: 1px 1px 2px rgba(0,0,0,0.2);
+  text-align: center;
+  margin: 0;
+}
+</style>
+</head>
+<body>
+<div id="controls">
+  <h1>International Checkers</h1>
+  <button id="undoBtn">Undo Move</button>
+  <button id="newBtn">New Game</button>
+</div>
+<canvas id="gameCanvas"></canvas>
+<script>
+// ===== Your existing variables and functions here =====
+// (No change from your original game code except below additions)
+
+function checkGameOver() {
+    let whiteCount = board.flat().filter(p => p && p.startsWith('w')).length;
+    let blackCount = board.flat().filter(p => p && p.startsWith('b')).length;
+
+    if (blackCount === 0) {
+        drawBoard("You Win!!");
+        showPlayAgainButton("You Win!!");
+        return true;
+    }
+    if (whiteCount === 0) {
+        drawBoard("You Lost.");
+        showPlayAgainButton("You Lost.");
+        return true;
+    }
+    return false;
+}
+
+function showPlayAgainButton(message) {
+    const btn = document.createElement("button");
+    btn.textContent = "Play Again";
+    btn.style.fontSize = "18px";
+    btn.style.padding = "12px";
+    btn.style.marginTop = "10px";
+    btn.onclick = () => {
+        document.body.removeChild(btn);
+        createBoard();
+        drawBoard();
+    };
+    document.body.appendChild(btn);
+}
+
+// Add this checkGameOver() call after moves
+function postMoveCheck() {
+    if (checkGameOver()) return true;
+    return false;
+}
+
+// Example placement: inside aiMove() and playerClick() after drawBoard()
+const originalPlayerClick = playerClick;
+playerClick = async function(e) {
+    await originalPlayerClick(e);
+    postMoveCheck();
+};
+const originalAiMove = aiMove;
+aiMove = async function() {
+    await originalAiMove();
+    postMoveCheck();
+};
+</script>
+</body>
+</html>
